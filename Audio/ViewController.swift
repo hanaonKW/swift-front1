@@ -2,7 +2,7 @@ import UIKit
 import AVFoundation
 import MessageUI
 
-class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDelegate{
+class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDelegate {
 
     var audioPlayer: AVAudioPlayer!
     var audioFile: URL!
@@ -10,7 +10,7 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     var progressTimer: Timer!
     let timePlayerSelector: Selector = #selector(ViewController.updatePlayTime)
     let timeRecordSelector: Selector = #selector(ViewController.updateRecordTime)
-    
+
     @IBOutlet var pvProgressPlay: UIProgressView!
     @IBOutlet var lblCurrentTime: UILabel!
     @IBOutlet var lblEndTime: UILabel!
@@ -21,8 +21,7 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     @IBOutlet var slVolume: UISlider!
     @IBOutlet var btnRecord: UIButton!
     @IBOutlet var lblRecordTime: UILabel!
-    
-    
+
     var audioRecorder: AVAudioRecorder!
     var isRecordMode = false
 
@@ -182,10 +181,48 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             (sender as AnyObject).setTitle("Record", for: UIControl.State())
             btnPlay.isEnabled = true
             initPlay()
+            if let path = audioFilePath {
+                sendFilePathToServer(filePath: path)
+            }
         }
     }
 
     @objc func updateRecordTime() {
         lblRecordTime.text = convertNSTimeInterval2String(audioRecorder.currentTime)
+    }
+
+    func sendFilePathToServer(filePath: String) {
+        guard let url = URL(string: "http://yourserver.com/upload-path") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let parameters: [String: String] = ["filePath": filePath]
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: parameters, options: .prettyPrinted)
+            request.httpBody = jsonData
+        } catch let error {
+            print("Error creating JSON: \(error)")
+            return
+        }
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error sending request: \(error)")
+                return
+            }
+            
+            guard let data = data, let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+                print("Server error")
+                return
+            }
+            
+            let responseString = String(data: data, encoding: .utf8)
+            print("Response: \(responseString ?? "No response")")
+        }
+        
+        task.resume()
     }
 }
