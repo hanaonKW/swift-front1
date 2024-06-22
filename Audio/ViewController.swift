@@ -1,6 +1,5 @@
 import UIKit
 import AVFoundation
-import MessageUI
 
 class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDelegate {
 
@@ -17,7 +16,6 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     @IBOutlet var btnPlay: UIButton!
     @IBOutlet var btnPause: UIButton!
     @IBOutlet var btnStop: UIButton!
-
     @IBOutlet var slVolume: UISlider!
     @IBOutlet var btnRecord: UIButton!
     @IBOutlet var lblRecordTime: UILabel!
@@ -182,7 +180,7 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             btnPlay.isEnabled = true
             initPlay()
             if let path = audioFilePath {
-                sendFilePathToServer(filePath: path)
+                uploadAudioFile(filePath: path)
             }
         }
     }
@@ -191,26 +189,33 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         lblRecordTime.text = convertNSTimeInterval2String(audioRecorder.currentTime)
     }
 
-    func sendFilePathToServer(filePath: String) {
-        guard let url = URL(string: "http://yourserver.com/upload-path") else { return }
-        
+    func uploadAudioFile(filePath: String) {
+        guard let url = URL(string: "http://yourserver.com/api/v1/voice-assistant/process-voice") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let parameters: [String: String] = ["filePath": filePath]
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: parameters, options: .prettyPrinted)
-            request.httpBody = jsonData
-        } catch let error {
-            print("Error creating JSON: \(error)")
-            return
-        }
+        let audioData = try! Data(contentsOf: URL(fileURLWithPath: filePath))
+        var body = Data()
         
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        // 파일 데이터 추가
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"voiceFile\"; filename=\"recordFile.m4a\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // boundary 종료 추가
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        let session = URLSession.shared
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("Error sending request: \(error)")
+                print("Error: \(error.localizedDescription)")
                 return
             }
             
@@ -221,8 +226,6 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             
             let responseString = String(data: data, encoding: .utf8)
             print("Response: \(responseString ?? "No response")")
-        }
-        
-        task.resume()
+        }.resume()
     }
 }
