@@ -30,8 +30,7 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     @IBOutlet var outputText: UITextView!
     @IBOutlet var btnExecution: UIButton!
     @IBOutlet var btnClose: UIButton!
-    
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         selectAudioFile()
@@ -45,6 +44,8 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         setupKeyboardNotifications()
         inputLabel.delegate = self
         setupRecordButton() // 녹음 버튼 설정 메소드 호출
+        btnExecution.isHidden = true
+        btnClose.isHidden = true
     }
 
     // 기존 함수들...
@@ -83,7 +84,6 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             AVSampleRateKey: 16000.0,                                        // 샘플 레이트
             AVNumberOfChannelsKey: 1                                         // 채널 수
         ] as [String: Any]
-        
 
         do {
             audioRecorder = try AVAudioRecorder(url: audioFile, settings: recordSettings)
@@ -98,22 +98,22 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
         return paths[0]
     }
-    
+
     func initPlay() {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: audioFile)
         } catch let error as NSError {
             print("Error-initPlay: \(error)")
         }
-        
+
         slVolume.maximumValue = MAX_VOLUME
         slVolume.value = 1.0
         pvProgressPlay.progress = 0
-        
+
         audioPlayer.delegate = self
         audioPlayer.prepareToPlay()
         audioPlayer.volume = slVolume.value
-        
+
         lblEndTime.text = convertNSTimeInterval2String(audioPlayer.duration)
         lblCurrentTime.text = convertNSTimeInterval2String(0)
         setPlayButtons(true, pause: false, stop: false)
@@ -212,11 +212,11 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             }
         }
     }
-    
 
     @objc func updateRecordTime() {
         lblRecordTime.text = convertNSTimeInterval2String(audioRecorder.currentTime)
     }
+
     func uploadAudioFile(filePath: String) {
         print("Preparing to upload audio file at path: \(filePath)")
 
@@ -228,6 +228,7 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+
 
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -259,74 +260,74 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         }
 
         let session = URLSession.shared
-        session.dataTask(with: request) { [weak self] data, response, error in
-            if let error = error {
-                print("Error during URLSession data task: \(error.localizedDescription)")
-                return
+                session.dataTask(with: request) { [weak self] data, response, error in
+                    if let error = error {
+                        print("Error during URLSession data task: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    guard let data = data, let response = response as? HTTPURLResponse,
+                          response.statusCode == 200 else {
+                        print("Server error or invalid response")
+                        return
+                    }
+
+                    do {
+                        if let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                            DispatchQueue.main.async {
+                                if let transcribedText = jsonResponse["transcribedText"] as? String,
+                                   let generatedText = jsonResponse["generatedText"] as? String {
+                                    self?.inputText.text = transcribedText
+                                    self?.outputText.text = generatedText
+                                    // 버튼 표시
+                                    self?.btnExecution.isHidden = false
+                                    self?.btnClose.isHidden = false
+                                }
+                            }
+                        }
+                    } catch {
+                        print("Error parsing JSON from response: \(error)")
+                    }
+                }.resume()
+                print("Data task resumed for uploading audio file.")
+            }
+
+            @IBAction func displayText(_ sender: UIButton) {
+                outputLabel.text = inputLabel.text
+            }
+
+            @IBAction func btnClosePressed(_ sender: UIButton) {
+                btnExecution.isHidden = true
+                btnClose.isHidden = true
             }
             
-            guard let data = data, let response = response as? HTTPURLResponse,
-                  response.statusCode == 200 else {
-                print("Server error or invalid response")
-                return
+            // Keyboard notifications setup
+            func setupKeyboardNotifications() {
+                NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
+                NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
             }
 
-            do {
-                if let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                    DispatchQueue.main.async {
-                        if let transcribedText = jsonResponse["transcribedText"] as? String,
-                           let generatedText = jsonResponse["generatedText"] as? String {
-                            self?.inputText.text = transcribedText
-                            self?.outputText.text = generatedText
-                            // 활성화
-                            self?.btnExecution.isEnabled = true
-                            self?.btnClose.isEnabled = true
-                        }
+            @objc func keyboardWillShow(notification: NSNotification) {
+                if let userInfo = notification.userInfo,
+                   let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                    let keyboardHeight = keyboardFrame.height
+                    let bottomSpace = view.frame.height - (inputLabel.frame.origin.y + inputLabel.frame.height)
+                    if bottomSpace < keyboardHeight {
+                        view.frame.origin.y = -(keyboardHeight - bottomSpace)
                     }
                 }
-            } catch {
-                print("Error parsing JSON from response: \(error)")
             }
-        }.resume()
-        print("Data task resumed for uploading audio file.")
-    }
 
-    @IBAction func displayText(_ sender: UIButton) {
-        outputLabel.text = inputLabel.text
-    }
+            @objc func keyboardWillHide(notification: NSNotification) {
+                view.frame.origin.y = 0
+            }
 
-    @IBAction func btnClosePressed(_ sender: UIButton) {
-        btnExecution.isEnabled = false
-        btnClose.isEnabled = false
-    }
-    
-    // Keyboard notifications setup
-    func setupKeyboardNotifications() {
-        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
-    }
+            func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+                textField.resignFirstResponder()
+                return true
+            }
 
-    @objc func keyboardWillShow(notification: NSNotification) {
-        if let userInfo = notification.userInfo,
-           let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-            let keyboardHeight = keyboardFrame.height
-            let bottomSpace = view.frame.height - (inputLabel.frame.origin.y + inputLabel.frame.height)
-            if bottomSpace < keyboardHeight {
-                view.frame.origin.y = -(keyboardHeight - bottomSpace)
+            deinit {
+                NotificationCenter.default.removeObserver(self)
             }
         }
-    }
-
-    @objc func keyboardWillHide(notification: NSNotification) {
-        view.frame.origin.y = 0
-    }
-
-    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        textField.resignFirstResponder()
-        return true
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-}
