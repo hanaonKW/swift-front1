@@ -1,7 +1,7 @@
 import UIKit
 import AVFoundation
 
-class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDelegate {
+class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDelegate, UITextFieldDelegate {
 
     var audioPlayer: AVAudioPlayer!
     var audioFile: URL!
@@ -9,6 +9,9 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     var progressTimer: Timer!
     let timePlayerSelector: Selector = #selector(ViewController.updatePlayTime)
     let timeRecordSelector: Selector = #selector(ViewController.updateRecordTime)
+    var audioFilePath: String?
+    var audioRecorder: AVAudioRecorder!
+    var isRecordMode = false
 
     @IBOutlet var pvProgressPlay: UIProgressView!
     @IBOutlet var lblCurrentTime: UILabel!
@@ -20,8 +23,9 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     @IBOutlet var btnRecord: UIButton!
     @IBOutlet var lblRecordTime: UILabel!
 
-    var audioRecorder: AVAudioRecorder!
-    var isRecordMode = false
+    @IBOutlet var inputLabel: UITextField!
+    @IBOutlet var outputLabel: UILabel!
+    @IBOutlet var displayButton: UIButton!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -33,51 +37,59 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         } else {
             initRecord()
         }
+        setupKeyboardNotifications()
+        inputLabel.delegate = self
     }
 
-    var audioFilePath: String?
+    // 기존 함수들...
 
     func selectAudioFile() {
         if !isRecordMode {
             audioFile = Bundle.main.url(forResource: "song", withExtension: "mp3")
         } else {
             let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            audioFile = documentDirectory.appendingPathComponent("recordFile.m4a")
+            audioFile = documentDirectory.appendingPathComponent("recordFile.wav")
             audioFilePath = audioFile.path
             print("File path: \(audioFilePath ?? "Not found")")
         }
     }
 
     func initRecord() {
-        let recordSettings = [
-            AVFormatIDKey: NSNumber(value: kAudioFormatAppleLossless as UInt32),
-            AVEncoderAudioQualityKey: AVAudioQuality.max.rawValue,
-            AVEncoderBitRateKey: 320000,
+        let audioFilename = getDocumentsDirectory().appendingPathComponent("recordFile.wav")
+        audioFilePath = audioFilename.path
+        
+        let recordSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 44100.0,
             AVNumberOfChannelsKey: 2,
-            AVSampleRateKey: 44100.0
-        ] as [String: Any]
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false
+        ]
         
         do {
-            audioRecorder = try AVAudioRecorder(url: audioFile, settings: recordSettings)
+            audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordSettings)
+            audioRecorder.delegate = self
+            audioRecorder.prepareToRecord()
         } catch let error as NSError {
             print("Error-initRecord: \(error)")
         }
         
-        audioRecorder.delegate = self
-        
         slVolume.value = 1.0
-        audioPlayer.volume = slVolume.value
         lblEndTime.text = convertNSTimeInterval2String(0)
         lblCurrentTime.text = convertNSTimeInterval2String(0)
         setPlayButtons(false, pause: false, stop: false)
         
         let session = AVAudioSession.sharedInstance()
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
+            try session.setCategory(.playAndRecord, mode: .default)
+            try session.setActive(true)
         } catch let error as NSError {
             print("Error-setCategory: \(error)")
         }
+    
+
     }
 
     func initPlay() {
@@ -169,14 +181,21 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     }
 
     @IBAction func btnRecord(_ sender: UIButton) {
-        if (sender as AnyObject).titleLabel??.text == "Record" {
-            audioRecorder.record()
-            (sender as AnyObject).setTitle("Stop", for: UIControl.State())
-            progressTimer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: timeRecordSelector, userInfo: nil, repeats: true)
+        if sender.titleLabel?.text == "Record" {
+            if !audioRecorder.isRecording {
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                    audioRecorder.record()
+                    sender.setTitle("Stop", for: .normal)
+                    progressTimer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: timeRecordSelector, userInfo: nil, repeats: true)
+                } catch let error as NSError {
+                    print("Error starting recording: \(error.localizedDescription)")
+                }
+            }
         } else {
             audioRecorder.stop()
             progressTimer.invalidate()
-            (sender as AnyObject).setTitle("Record", for: UIControl.State())
+            sender.setTitle("Record", for: .normal)
             btnPlay.isEnabled = true
             initPlay()
             if let path = audioFilePath {
@@ -184,13 +203,17 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             }
         }
     }
+    
+    func getDocumentsDirectory() -> URL {
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
 
     @objc func updateRecordTime() {
         lblRecordTime.text = convertNSTimeInterval2String(audioRecorder.currentTime)
     }
 
     func uploadAudioFile(filePath: String) {
-        guard let url = URL(string: "http://yourserver.com/api/v1/voice-assistant/process-voice") else { return }
+        guard let url = URL(string: "http://13.124.197.128/api/v1/voice-assistant/process-voice") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         
@@ -202,8 +225,8 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         
         // 파일 데이터 추가
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"voiceFile\"; filename=\"recordFile.m4a\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"voiceFile\"; filename=\"recordFile.wav\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
         body.append(audioData)
         body.append("\r\n".data(using: .utf8)!)
         
@@ -227,5 +250,39 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
             let responseString = String(data: data, encoding: .utf8)
             print("Response: \(responseString ?? "No response")")
         }.resume()
+    }
+
+    @IBAction func displayText(_ sender: UIButton) {
+        outputLabel.text = inputLabel.text
+    }
+
+    // Keyboard notifications setup
+    func setupKeyboardNotifications() {
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide), name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+
+    @objc func keyboardWillShow(notification: NSNotification) {
+        if let userInfo = notification.userInfo,
+           let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+            let keyboardHeight = keyboardFrame.height
+            let bottomSpace = view.frame.height - (inputLabel.frame.origin.y + inputLabel.frame.height)
+            if bottomSpace < keyboardHeight {
+                view.frame.origin.y = -(keyboardHeight - bottomSpace)
+            }
+        }
+    }
+
+    @objc func keyboardWillHide(notification: NSNotification) {
+        view.frame.origin.y = 0
+    }
+
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        textField.resignFirstResponder()
+        return true
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
