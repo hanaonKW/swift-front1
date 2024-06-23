@@ -265,6 +265,9 @@
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <state key="normal" title="Button"/>
                                 <buttonConfiguration key="configuration" style="filled" title="취소"/>
+                                <connections>
+                                    <action selector="btnClosePressed:" destination="BYZ-38-t0r" eventType="touchUpInside" id="ahM-Mn-mjB"/>
+                                </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" enabled="NO" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="qQ6-T3-b7H">
                                 <rect key="frame" x="45" y="568" width="106" height="51"/>

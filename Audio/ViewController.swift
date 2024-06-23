@@ -295,6 +295,11 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         outputLabel.text = inputLabel.text
     }
 
+    @IBAction func btnClosePressed(_ sender: UIButton) {
+        btnExecution.isEnabled = false
+        btnClose.isEnabled = false
+    }
+    
     // Keyboard notifications setup
     func setupKeyboardNotifications() {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow), name: UIResponder.keyboardWillShowNotification, object: nil)
