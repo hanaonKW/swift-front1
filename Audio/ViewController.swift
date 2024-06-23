@@ -26,7 +26,12 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     @IBOutlet var inputLabel: UITextField!
     @IBOutlet var outputLabel: UILabel!
     @IBOutlet var displayButton: UIButton!
-
+    @IBOutlet var inputText: UITextView!
+    @IBOutlet var outputText: UITextView!
+    @IBOutlet var btnExecution: UIButton!
+    @IBOutlet var btnClose: UIButton!
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         selectAudioFile()
@@ -39,9 +44,15 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         }
         setupKeyboardNotifications()
         inputLabel.delegate = self
+        setupRecordButton() // 녹음 버튼 설정 메소드 호출
     }
 
     // 기존 함수들...
+
+    func setupRecordButton() {
+        // 초기 상태는 녹음 시작 버튼으로 설정
+        btnRecord.setImage(UIImage(systemName: "mic.fill"), for: .normal)
+    }
 
     func selectAudioFile() {
         if !isRecordMode {
@@ -55,43 +66,39 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     }
 
     func initRecord() {
-        let audioFilename = getDocumentsDirectory().appendingPathComponent("recordFile.wav")
-        audioFilePath = audioFilename.path
-        
-        let recordSettings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: 44100.0,
-            AVNumberOfChannelsKey: 2,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsFloatKey: false
-        ]
-        
+        let session = AVAudioSession.sharedInstance()
         do {
-            audioRecorder = try AVAudioRecorder(url: audioFilename, settings: recordSettings)
+            try session.setCategory(.playAndRecord, mode: .default)
+            try session.setActive(true)
+            print("Audio session is set up for record and playback")
+        } catch let error as NSError {
+            print("Error-setCategory: \(error)")
+        }
+
+        let recordSettings = [
+            AVFormatIDKey: NSNumber(value: kAudioFormatLinearPCM as UInt32), // WAV 포맷
+            AVLinearPCMBitDepthKey: 16,                                      // 비트 깊이
+            AVLinearPCMIsBigEndianKey: false,                                // 빅 엔디언 사용 여부
+            AVLinearPCMIsFloatKey: false,                                    // 부동 소수점 샘플 사용 여부
+            AVSampleRateKey: 16000.0,                                        // 샘플 레이트
+            AVNumberOfChannelsKey: 1                                         // 채널 수
+        ] as [String: Any]
+        
+
+        do {
+            audioRecorder = try AVAudioRecorder(url: audioFile, settings: recordSettings)
             audioRecorder.delegate = self
             audioRecorder.prepareToRecord()
         } catch let error as NSError {
             print("Error-initRecord: \(error)")
         }
-        
-        slVolume.value = 1.0
-        lblEndTime.text = convertNSTimeInterval2String(0)
-        lblCurrentTime.text = convertNSTimeInterval2String(0)
-        setPlayButtons(false, pause: false, stop: false)
-        
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playAndRecord, mode: .default)
-            try session.setActive(true)
-        } catch let error as NSError {
-            print("Error-setCategory: \(error)")
-        }
-    
-
     }
 
+    func getDocumentsDirectory() -> URL {
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        return paths[0]
+    }
+    
     func initPlay() {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: audioFile)
@@ -181,21 +188,23 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
     }
 
     @IBAction func btnRecord(_ sender: UIButton) {
-        if sender.titleLabel?.text == "Record" {
+        if sender.currentImage == UIImage(systemName: "mic.fill") {
+            // Start recording
             if !audioRecorder.isRecording {
                 do {
                     try AVAudioSession.sharedInstance().setActive(true)
                     audioRecorder.record()
-                    sender.setTitle("Stop", for: .normal)
+                    sender.setImage(UIImage(systemName: "stop.circle.fill"), for: .normal)
                     progressTimer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: timeRecordSelector, userInfo: nil, repeats: true)
                 } catch let error as NSError {
                     print("Error starting recording: \(error.localizedDescription)")
                 }
             }
         } else {
+            // Stop recording
             audioRecorder.stop()
             progressTimer.invalidate()
-            sender.setTitle("Record", for: .normal)
+            sender.setImage(UIImage(systemName: "mic.fill"), for: .normal)
             btnPlay.isEnabled = true
             initPlay()
             if let path = audioFilePath {
@@ -204,52 +213,82 @@ class ViewController: UIViewController, AVAudioPlayerDelegate, AVAudioRecorderDe
         }
     }
     
-    func getDocumentsDirectory() -> URL {
-        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
 
     @objc func updateRecordTime() {
         lblRecordTime.text = convertNSTimeInterval2String(audioRecorder.currentTime)
     }
-
     func uploadAudioFile(filePath: String) {
-        guard let url = URL(string: "http://13.124.197.128/api/v1/voice-assistant/process-voice") else { return }
+        print("Preparing to upload audio file at path: \(filePath)")
+
+        guard let url = URL(string: "http://13.124.197.128/api/v1/voice-assistant/process-voice") else {
+            print("Error: Invalid URL")
+            return
+        }
+        print("URL is valid: \(url)")
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        
+
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        let audioData = try! Data(contentsOf: URL(fileURLWithPath: filePath))
-        var body = Data()
-        
-        // 파일 데이터 추가
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"voiceFile\"; filename=\"recordFile.wav\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
-        body.append(audioData)
-        body.append("\r\n".data(using: .utf8)!)
-        
-        // boundary 종료 추가
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        request.httpBody = body
-        
+
+        print("Boundary for multipart form data: \(boundary)")
+
+        do {
+            let audioData = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            print("Audio data loaded successfully. Data length: \(audioData.count) bytes")
+
+            var body = Data()
+
+            // 파일 데이터 추가
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"voiceFile\"; filename=\"recordFile.wav\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+            body.append(audioData)
+            body.append("\r\n".data(using: .utf8)!)
+
+            // boundary 종료 추가
+            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+            request.httpBody = body
+            print("Request body constructed.")
+
+        } catch {
+            print("Error loading audio data: \(error)")
+            return
+        }
+
         let session = URLSession.shared
-        session.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { [weak self] data, response, error in
             if let error = error {
-                print("Error: \(error.localizedDescription)")
+                print("Error during URLSession data task: \(error.localizedDescription)")
                 return
             }
             
-            guard let data = data, let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-                print("Server error")
+            guard let data = data, let response = response as? HTTPURLResponse,
+                  response.statusCode == 200 else {
+                print("Server error or invalid response")
                 return
             }
-            
-            let responseString = String(data: data, encoding: .utf8)
-            print("Response: \(responseString ?? "No response")")
+
+            do {
+                if let jsonResponse = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                    DispatchQueue.main.async {
+                        if let transcribedText = jsonResponse["transcribedText"] as? String,
+                           let generatedText = jsonResponse["generatedText"] as? String {
+                            self?.inputText.text = transcribedText
+                            self?.outputText.text = generatedText
+                            // 활성화
+                            self?.btnExecution.isEnabled = true
+                            self?.btnClose.isEnabled = true
+                        }
+                    }
+                }
+            } catch {
+                print("Error parsing JSON from response: \(error)")
+            }
         }.resume()
+        print("Data task resumed for uploading audio file.")
     }
 
     @IBAction func displayText(_ sender: UIButton) {
