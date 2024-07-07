@@ -15,6 +15,9 @@
 		A9182E2E2A8A1B44004AB8A9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A9182E2D2A8A1B44004AB8A9 /* Assets.xcassets */; };
 		A9182E312A8A1B44004AB8A9 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A9182E2F2A8A1B44004AB8A9 /* LaunchScreen.storyboard */; };
 		A91F77872A8E0F3400159366 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A91F77862A8E0F3400159366 /* WebKit.framework */; };
+		A9F4304A2C31056C00C3F06A /* hana.png in Resources */ = {isa = PBXBuildFile; fileRef = A9F430492C31056C00C3F06A /* hana.png */; };
+		A9F4304C2C310C2800C3F06A /* check.png in Resources */ = {isa = PBXBuildFile; fileRef = A9F4304B2C310C2800C3F06A /* check.png */; };
+		A9F4304E2C314C3500C3F06A /* menu.png in Resources */ = {isa = PBXBuildFile; fileRef = A9F4304D2C314C3500C3F06A /* menu.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +31,9 @@
 		A9182E302A8A1B44004AB8A9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A9182E322A8A1B44004AB8A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A91F77862A8E0F3400159366 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		A9F430492C31056C00C3F06A /* hana.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = hana.png; sourceTree = "<group>"; };
+		A9F4304B2C310C2800C3F06A /* check.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = check.png; sourceTree = "<group>"; };
+		A9F4304D2C314C3500C3F06A /* menu.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = menu.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +68,9 @@
 		A9182E232A8A1B44004AB8A9 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
+				A9F4304D2C314C3500C3F06A /* menu.png */,
+				A9F4304B2C310C2800C3F06A /* check.png */,
+				A9F430492C31056C00C3F06A /* hana.png */,
 				A90254802A8CBA3D008E6632 /* song.mp3 */,
 				A9182E242A8A1B44004AB8A9 /* AppDelegate.swift */,
 				A9182E262A8A1B44004AB8A9 /* SceneDelegate.swift */,
@@ -140,8 +149,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A9F4304C2C310C2800C3F06A /* check.png in Resources */,
 				A9182E312A8A1B44004AB8A9 /* LaunchScreen.storyboard in Resources */,
+				A9F4304A2C31056C00C3F06A /* hana.png in Resources */,
 				A90254812A8CBA3D008E6632 /* song.mp3 in Resources */,
+				A9F4304E2C314C3500C3F06A /* menu.png in Resources */,
 				A9182E2E2A8A1B44004AB8A9 /* Assets.xcassets in Resources */,
 				A9182E2C2A8A1B44004AB8A9 /* Main.storyboard in Resources */,
 			);
